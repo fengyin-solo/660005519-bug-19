@@ -2,7 +2,7 @@
   <div class="app-root">
     <header class="top-bar">
       <h1>📈 实时订单簿深度可视化与量化网格交易引擎</h1>
-      <div class="status"><span class="dot" :class="{on:store.wsConnected}"></span>{{ store.wsConnected?'实时':'已断开' }}</div>
+      <div class="status"><span class="dot" :class="{on:connected}"></span>{{ connected?'实时':'已断开' }}</div>
     </header>
     <div class="main-grid">
       <div class="col-wide">
@@ -23,10 +23,10 @@ import OrderBookDepth from './components/OrderBookDepth.vue'
 import PriceChart from './components/PriceChart.vue'
 import GridControl from './components/GridControl.vue'
 import BacktestReport from './components/BacktestReport.vue'
-import { useTradingStore } from './store/trading'
-const store = useTradingStore()
-onMounted(() => store.connectWS())
-onUnmounted(() => store.disconnectWS())
+import { useMarketData } from './composables/useMarketData'
+const { connected, connect, disconnect } = useMarketData()
+onMounted(connect)
+onUnmounted(disconnect)
 </script>
 
 <style>

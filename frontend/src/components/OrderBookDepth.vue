@@ -3,12 +3,12 @@
 </template>
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useTradingStore } from '../store/trading'
-const store = useTradingStore(); const cvs = ref<HTMLCanvasElement>()
+import { useMarketData } from '../composables/useMarketData'
+const { orderBook } = useMarketData(); const cvs = ref<HTMLCanvasElement>()
 function draw() {
   const c = cvs.value!; const ctx = c.getContext('2d')!; const W=c.width,H=c.height
   ctx.fillStyle='#0a0e27';ctx.fillRect(0,0,W,H)
-  const ob = store.orderBook; if(!ob) return
+  const ob = orderBook.value; if(!ob) return
   const maxQty = Math.max(...ob.bids.map(b=>b[1]),...ob.asks.map(a=>a[1]),1)
   const scale = (W/2-20) / maxQty
   // Bids (green, left)
@@ -27,6 +27,6 @@ function draw() {
   })
   ctx.strokeStyle='#334155';ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke()
 }
-watch(()=>store.orderBook,draw,{deep:true})
+watch(orderBook,draw,{deep:true})
 </script>
 <style scoped>.panel{background:#0f1535;border-radius:8px;padding:12px;border:1px solid #1e2a5a}.panel h4{color:#4fc3f7;font-size:13px;margin-bottom:8px}.depth-canvas{display:block;margin:0 auto;border-radius:4px}</style>

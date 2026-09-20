@@ -11,6 +11,7 @@ ACTIVE_CLIENTS = []
 SIM_RUNNING = True
 current_price = 100.0
 ticks_history = []
+event_loop = None
 
 class GridConfig(BaseModel):
     lowerPrice: float = 95
@@ -45,14 +46,23 @@ def simulate_market():
         order_book = {"bids": bids, "asks": asks, "midPrice": price, "spread": round(asks[0][0] - bids[0][0], 2)}
 
         payload = json.dumps({"ticks": ticks_history[-60:], "orderBook": order_book})
+        # simulate_market 运行在子线程，必须使用启动时捕获的主事件循环回推
+        dead = []
         for ws in ACTIVE_CLIENTS:
-            try: asyncio.run_coroutine_threadsafe(ws.send_text(payload), asyncio.get_event_loop())
-            except: pass
+            try:
+                asyncio.run_coroutine_threadsafe(ws.send_text(payload), event_loop)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            try: ACTIVE_CLIENTS.remove(ws)
+            except ValueError: pass
         time.sleep(0.5)
 
 
 @app.on_event("startup")
 async def startup():
+    global event_loop
+    event_loop = asyncio.get_running_loop()
     threading.Thread(target=simulate_market, daemon=True).start()
 
 
@@ -106,7 +116,7 @@ def run_backtest(config: GridConfig):
     return_rate = (total_profit / config.initialCapital) * 100
 
     # Sharpe ratio
-    eq_returns = np.diff(equity_curve) / np.array(equity_curve[:-1] + 1e-5)
+    eq_returns = np.diff(equity_curve) / (np.array(equity_curve[:-1]) + 1e-5)
     sharpe = float(np.mean(eq_returns) / max(np.std(eq_returns), 1e-5) * np.sqrt(252)) if len(eq_returns) > 1 else 0
 
     # Max drawdown
