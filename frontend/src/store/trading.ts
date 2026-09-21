@@ -1,36 +1,39 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import axios from 'axios'
-import type { Tick, OrderBook, GridConfig, GridResult } from '@/types'
+import type { GridConfig, GridResult } from '@/types'
+import { fetchBacktest, marketData } from '@/services/marketData'
+
+/**
+ * 页面级 store。行情取数 / 连接状态 / 接口返回的解释全部收敛在
+ * services/marketData 的单例中，本 store 只做透传：顶部与各面板
+ * 无论从 store 还是直接使用该服务，拿到的都是同一份状态。
+ */
 export const useTradingStore = defineStore('trading', () => {
   const loading = ref(false)
-  const ticks = ref<Tick[]>([])
-  const orderBook = ref<OrderBook | null>(null)
   const gridResult = ref<GridResult | null>(null)
-  const wsConnected = ref(false)
   const config = ref<GridConfig>({ lowerPrice: 95, upperPrice: 115, gridCount: 20, capitalPerGrid: 1000, initialCapital: 100000 })
-
-  let ws: WebSocket | null = null
-  function connectWS() {
-    ws = new WebSocket(`ws://${location.hostname}:8000/ws`)
-    ws.onopen = () => { wsConnected.value = true }
-    ws.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data)
-        if (d.ticks) ticks.value = d.ticks.slice(-60)
-        if (d.orderBook) orderBook.value = d.orderBook
-      } catch {}
-    }
-    ws.onclose = () => { wsConnected.value = false }
-  }
 
   async function runBacktest() {
     loading.value = true
-    try { const { data } = await axios.post('/api/backtest', config.value) ; gridResult.value = data }
-    finally { loading.value = false }
+    try {
+      gridResult.value = await fetchBacktest(config.value)
+    } finally {
+      loading.value = false
+    }
   }
 
-  function disconnectWS() { ws?.close(); ws = null; wsConnected.value = false }
-
-  return { loading, ticks, orderBook, gridResult, wsConnected, config, connectWS, runBacktest, disconnectWS }
+  return {
+    loading,
+    // 行情部分：全部来自共享实现，store 不再持有第二份副本。
+    ticks: marketData.ticks,
+    orderBook: marketData.orderBook,
+    lastUpdated: marketData.lastUpdated,
+    status: marketData.status,
+    wsConnected: marketData.wsConnected,
+    gridResult,
+    config,
+    connectWS: () => marketData.connect(),
+    disconnectWS: () => marketData.disconnect(),
+    runBacktest,
+  }
 })
